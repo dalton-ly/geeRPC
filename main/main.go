@@ -3,17 +3,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"geerpc"
-	"geerpc/codec"
 	"net"
 	"time"
+
+	"geerpc"
+	"geerpc/codec"
 
 	"github.com/sirupsen/logrus"
 )
 
-func startServer(addr chan string){
-	l,err := net.Listen("tcp",":9999")
-	if err != nil{
+func startServer(addr chan string) {
+	l, err := net.Listen("tcp", ":9999")
+	if err != nil {
 		logrus.Fatal("rpc server: listen failed: ", err)
 	}
 	logrus.Info("rpc server: listen on ", l.Addr())
@@ -21,12 +22,12 @@ func startServer(addr chan string){
 	geerpc.Accept(l)
 }
 
-func main(){
+func main() {
 	addr := make(chan string)
 	go startServer(addr)
 
 	conn, _ := net.Dial("tcp", <-addr)
-	defer func(){
+	defer func() {
 		_ = conn.Close()
 	}()
 	time.Sleep(time.Second)
@@ -34,8 +35,8 @@ func main(){
 	_ = json.NewEncoder(conn).Encode(geerpc.DefaultOption)
 	cc := codec.NewGobCodec(conn)
 
-	//send request
-	for i:=0;i<6;i++{
+	// send request
+	for i := 0; i < 6; i++ {
 		h := &codec.Header{
 			ServiceMethod: "Foo.Sum",
 			Seq:           uint64(i),

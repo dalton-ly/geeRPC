@@ -28,9 +28,9 @@ func (c *GobCodec) ReadBody(body interface{}) error {
 }
 
 func (c *GobCodec) Write(h *Header, body interface{}) error {
-	defer func(){
+	defer func() {
 		err := c.buf.Flush()
-		if err != nil{
+		if err != nil {
 			_ = c.Close()
 		}
 	}()
@@ -45,9 +45,6 @@ func (c *GobCodec) Write(h *Header, body interface{}) error {
 	}
 	return nil
 }
-
-
-
 
 func NewGobCodec(conn io.ReadWriteCloser) Codec {
 	return &GobCodec{
