@@ -10,12 +10,14 @@ package geerpc
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"geerpc/codec"
 
@@ -28,14 +30,17 @@ const MagicNumber = 0x3bef5c
 // Option 包含了 geeRPC 的协商信息
 // 为了简化，协商信息固定使用 JSON 编码
 type Option struct {
-	MagicNumber int        // MagicNumber 标记了 geeRPC 请求
-	CodecType   codec.Type // 客户端选择的编解码方式
+	MagicNumber    int           // MagicNumber 标记了 geeRPC 请求
+	CodecType      codec.Type    // 客户端选择的编解码方式
+	ConnectTimeout time.Duration // 0 means no limit
+	HandleTimeout  time.Duration
 }
 
 // DefaultOption 是一个默认的协商配置
 var DefaultOption = &Option{
-	MagicNumber: MagicNumber,
-	CodecType:   codec.GobType,
+	MagicNumber:    MagicNumber,
+	CodecType:      codec.GobType,
+	ConnectTimeout: time.Second * 10,
 }
 
 // Server 代表一个 RPC 服务器
@@ -95,14 +100,14 @@ func (s *Server) ServeConn(conn io.ReadWriteCloser) {
 		return
 	}
 	// 使用构造函数创建编解码器实例，并调用 serveCodec 开始处理请求
-	s.serveCodec(f(conn))
+	s.serveCodec(f(conn), &opt)
 }
 
 var invalidRequest = struct{}{}
 
 // serveCodec 是核心的请求处理循环
 // 读取请求 处理请求 回复请求
-func (s *Server) serveCodec(cc codec.Codec) {
+func (s *Server) serveCodec(cc codec.Codec, opt *Option) {
 	sending := new(sync.Mutex)
 	// 用于处理并发请求的等待组 wait group
 	wg := new(sync.WaitGroup)
@@ -117,7 +122,7 @@ func (s *Server) serveCodec(cc codec.Codec) {
 			continue
 		}
 		wg.Add(1)
-		go s.handleRequest(cc, req, sending, wg)
+		go s.handleRequest(cc, req, sending, wg, opt.HandleTimeout)
 	}
 	wg.Wait()
 	_ = cc.Close()
@@ -183,17 +188,37 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 }
 
 // 进行rpc调用
-func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
+func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
-	err := req.svc.call(req.mtype, req.argv, req.replyv)
-	if err != nil {
-		req.h.Error = err.Error()
-		server.sendResponse(cc, req.h, invalidRequest, sending)
+	called := make(chan struct{}, 1)
+	sent := make(chan struct{}, 1)
+	go func() {
+		err := req.svc.call(req.mtype, req.argv, req.replyv)
+		called <- struct{}{}
+		if err != nil {
+			req.h.Error = err.Error()
+			server.sendResponse(cc, req.h, invalidRequest, sending)
+			sent <- struct{}{}
+			return
+		}
+		logrus.Infof("rpc server: handle request %s", req.h.ServiceMethod)
+		server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+		sent <- struct{}{}
+	}()
+	if timeout == 0 { // 没有设置超时时间
+		<-called
+		<-sent
 		return
 	}
-	logrus.Infof("rpc server: handle request %s", req.h.ServiceMethod)
+	select {
+	case <-called:
+		<-sent
+	case <-time.After(timeout):
+		req.h.Error = fmt.Sprintf("rpc server: request handle timeout: %s", timeout)
+		server.sendResponse(cc, req.h, invalidRequest, sending)
+	}
+
 	// req.replyv = reflect.ValueOf(fmt.Sprintf("geerpc resp %d", req.h.Seq))
-	server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
 }
 
 func (server *Server) Register(rcvr interface{}) error {
