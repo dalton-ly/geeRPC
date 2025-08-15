@@ -1,11 +1,12 @@
 package main
 
 import (
-	"geerpc"
 	"log"
 	"net"
 	"sync"
 	"time"
+
+	"geerpc"
 )
 
 type Foo int
@@ -56,4 +57,3 @@ func main() {
 	}
 	wg.Wait()
 }
-

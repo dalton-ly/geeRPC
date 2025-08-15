@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 )
+
 type Foo int
 
 type Args struct{ Num1, Num2 int }

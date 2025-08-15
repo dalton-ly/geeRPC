@@ -39,7 +39,7 @@ var DefaultOption = &Option{
 }
 
 // Server 代表一个 RPC 服务器
-type Server struct{
+type Server struct {
 	servicesMap sync.Map
 }
 
@@ -127,8 +127,8 @@ func (s *Server) serveCodec(cc codec.Codec) {
 type request struct {
 	h            *codec.Header
 	argv, replyv reflect.Value
-	mtype *methodType
-	svc *service
+	mtype        *methodType
+	svc          *service
 }
 
 func (server *Server) readRequestHeader(cc codec.Codec) (*codec.Header, error) {
@@ -154,15 +154,15 @@ func (server *Server) readRequest(cc codec.Codec) (*request, error) {
 	req := &request{
 		h: h,
 	}
-	req.svc,req.mtype,err = server.findService(req.h.ServiceMethod)
-	if err!= nil{
+	req.svc, req.mtype, err = server.findService(req.h.ServiceMethod)
+	if err != nil {
 		logrus.Error("rpc server: find service failed: ", err)
 		return req, err
 	}
 	req.argv = req.mtype.newArgv()
 	req.replyv = req.mtype.newReplyv()
 
-	//argvi需要是指针 
+	// argvi需要是指针
 	argvi := req.argv.Interface()
 	if req.argv.Kind() != reflect.Ptr {
 		argvi = req.argv.Addr().Interface()
@@ -185,7 +185,7 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 // 进行rpc调用
 func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
-	err := req.svc.call(req.mtype,req.argv,req.replyv)
+	err := req.svc.call(req.mtype, req.argv, req.replyv)
 	if err != nil {
 		req.h.Error = err.Error()
 		server.sendResponse(cc, req.h, invalidRequest, sending)
@@ -196,9 +196,9 @@ func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.
 	server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
 }
 
-func (server *Server) Register(rcvr interface{}) error{
+func (server *Server) Register(rcvr interface{}) error {
 	s := newService(rcvr)
-	if _,dup := server.servicesMap.LoadOrStore(s.name,s);dup{
+	if _, dup := server.servicesMap.LoadOrStore(s.name, s); dup {
 		return errors.New("rpc server: service already registered: " + s.name)
 	}
 	return nil
@@ -207,24 +207,20 @@ func (server *Server) Register(rcvr interface{}) error{
 // Register publishes the receiver's methods in the DefaultServer.
 func Register(rcvr interface{}) error { return DefaultServer.Register(rcvr) }
 
-
-
-
-//通过Service.Method 格式来查找服务
-
-func (server *Server) findService(serviceMethod string) (svc *service,mtype *methodType, err error) {
+// 通过Service.Method 格式来查找服务
+func (server *Server) findService(serviceMethod string) (svc *service, mtype *methodType, err error) {
 	dot := strings.LastIndex(serviceMethod, ".")
 	if dot < 0 {
 		err = errors.New("rpc server: service.method request ill-formed: " + serviceMethod)
 		return
 	}
-	serviceName,methodName := serviceMethod[:dot],serviceMethod[dot+1:]
+	serviceName, methodName := serviceMethod[:dot], serviceMethod[dot+1:]
 	svic, ok := server.servicesMap.Load(serviceName)
 	if !ok {
 		err = errors.New("rpc server: can't find service " + serviceName)
 		return
 	}
-	svc = svic.(*service) //断言
+	svc = svic.(*service) // 断言
 	mtype = svc.methods[methodName]
 	if mtype == nil {
 		err = errors.New("rpc server: can't find method " + methodName)
