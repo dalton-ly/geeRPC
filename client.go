@@ -134,6 +134,16 @@ func NewClient(conn net.Conn, opt *Option) (*Client, error) {
 		conn.Close()
 		return nil, err
 	}
+
+	// //握手信号
+	// buf := make([]byte, len("GEERPC_CONN_OK"))
+	// if _, err := io.ReadFull(conn, buf); err != nil {
+	// 	logrus.Println("handshake failed:", err)
+	// 	return nil, err
+	// }
+	// if string(buf) != "GEERPC_CONN_OK" {
+	// 	return nil, errors.New("handshake failed")
+	// }
 	return newClientCodec(f(conn), opt), nil
 }
 
