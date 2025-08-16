@@ -152,9 +152,9 @@ func (server *Server) readRequestHeader(cc codec.Codec) (*codec.Header, error) {
 func (server *Server) readRequest(cc codec.Codec) (*request, error) {
 	h, err := server.readRequestHeader(cc)
 	if err != nil {
-		if err != io.EOF {
-			logrus.Error("rpc server: read request header failed: ", err)
-		}
+		// if err != io.EOF {
+		// 	logrus.Error("rpc server: read request header failed: ", err)
+		// }
 		return nil, err
 	}
 	req := &request{

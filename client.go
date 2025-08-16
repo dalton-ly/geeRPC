@@ -60,7 +60,7 @@ func (client *Client) Close() error {
 }
 
 // 检查client是否可用
-func (client *Client) isAvailable() bool {
+func (client *Client) IsAvailable() bool {
 	client.mu.Lock()
 	defer client.mu.Unlock()
 	return !client.shutdown && !client.closing
